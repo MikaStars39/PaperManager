@@ -3,7 +3,7 @@ import os
 from typing import Dict, Any, List
 
 class ConfigManager:
-    def __init__(self, config_file: str = "config/default.toml"):
+    def __init__(self, config_file: str = "config/base.toml"):
         self.config_file = config_file
         self.config = self.load_config()
     

@@ -5,7 +5,7 @@
 model = "google/gemini-2.0-flash-001"
 temperature = 0.3
 max_tokens = 1000000
-api_key = "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"  # Add your OpenRouter API key here
+api_key = ""  # Add your OpenRouter API key here
 
 [paper]
 types = ["Agent/RL", "Interpretability", "Efficiency"]

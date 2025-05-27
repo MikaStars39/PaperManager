@@ -1,4 +1,3 @@
-import gradio as gr
 import argparse
 from PaperManager.ui import create_paper_manager_ui
 from PaperManager.config import ConfigManager

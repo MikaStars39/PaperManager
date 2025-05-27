@@ -37,6 +37,7 @@ def call_openrouter(
         )
         
         result = response.json()
+        print("The result is", result)
         content = result['choices'][0]['message']['content'].strip()
         conversation.append({"role": "assistant", "content": content})
         return conversation, content
