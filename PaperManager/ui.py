@@ -34,8 +34,40 @@ class PaperManagerUI:
         except Exception as e:
             return f"❌ Error initializing Paper Manager: {str(e)}"
     
+    def chat_with_manager_stream(self, message: str, history):
+        """Handle streaming chat with the PaperManager"""
+        if not self.paper_manager:
+            history.append([message, "❌ Please initialize the Paper Manager first in the Settings tab."])
+            yield "", history
+            return
+        
+        if not message.strip():
+            yield "", history
+            return
+        
+        try:
+            # Add user message to history immediately
+            history.append([message, ""])
+            yield "", history
+            
+            # Stream the response
+            response = ""
+            for chunk in self.paper_manager.chat_stream(message):
+                response += chunk
+                # Update the last message in history with the accumulated response
+                history[-1][1] = response
+                yield "", history
+                
+        except Exception as e:
+            error_msg = f"❌ Error: {str(e)}"
+            if history and history[-1][0] == message:
+                history[-1][1] = error_msg
+            else:
+                history.append([message, error_msg])
+            yield "", history
+
     def chat_with_manager(self, message: str, history):
-        """Handle chat with the PaperManager"""
+        """Handle chat with the PaperManager (non-streaming fallback)"""
         if not self.paper_manager:
             history.append([message, "❌ Please initialize the Paper Manager first in the Settings tab."])
             return "", history
@@ -109,33 +141,26 @@ class PaperManagerUI:
                     )
             
             # Event handlers
-            def handle_send(message, history):
-                return self.chat_with_manager(message, history)
-            
-            def handle_init(csv_path, api_key):
-                return self.initialize_manager(csv_path, api_key)
-            
-            # Connect events
             send_btn.click(
-                fn=handle_send,
+                fn=self.chat_with_manager_stream,
                 inputs=[msg_input, chatbot],
                 outputs=[msg_input, chatbot]
             )
             
             msg_input.submit(
-                fn=handle_send,
+                fn=self.chat_with_manager_stream,
                 inputs=[msg_input, chatbot],
                 outputs=[msg_input, chatbot]
             )
             
             init_btn.click(
-                fn=handle_init,
+                fn=self.initialize_manager,
                 inputs=[csv_path_input, api_key_input],
                 outputs=init_status
             )
             
             reinit_btn.click(
-                fn=handle_init,
+                fn=self.initialize_manager,
                 inputs=[csv_path_input, api_key_input],
                 outputs=init_status
             )

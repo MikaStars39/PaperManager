@@ -16,6 +16,9 @@ def main():
     # Create the interface with the config
     interface = create_paper_manager_ui(config_manager)
     
+    # Enable queue for streaming support
+    interface.queue()
+    
     # Launch the interface with minimal settings
     try:
         interface.launch(
@@ -27,6 +30,7 @@ def main():
     except Exception as e:
         print(f"Error launching interface: {e}")
         # Fallback to basic launch
+        interface.queue()  # Make sure queue is enabled in fallback too
         interface.launch()
 
 if __name__ == "__main__":

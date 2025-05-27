@@ -1,9 +1,9 @@
-from typing import List, Dict
+from typing import List, Dict, Generator
 import csv
 import re
 import os
 from urllib.parse import urlparse
-from .api import call_openrouter
+from .api import call_openrouter, call_openrouter_stream
 from .prompts import general_prompt
 from .config import ConfigManager
 
@@ -167,8 +167,50 @@ class PaperManager:
         
         return summary
     
+    def chat_stream(self, prompt: str) -> Generator[str, None, None]:
+        """Main chat interface with streaming response"""
+        # Add context about current papers
+        context = f"{general_prompt}\n\nCurrent database status:\n{self.get_papers_summary()}\n\nUser: {prompt}"
+        
+        # Call LLM with streaming
+        full_response = ""
+        for chunk in call_openrouter_stream(
+            context, 
+            self.api_key, 
+            self.model,
+            temperature=self.config_manager.api_temperature,
+            max_tokens=self.config_manager.api_max_tokens,
+            conversation=self.conversation.copy()  # Pass a copy to avoid modification during streaming
+        ):
+            full_response += chunk
+            yield chunk
+        
+        # After streaming is complete, process the full response
+        if full_response:
+            # Update conversation with the complete response
+            self.conversation.append({"role": "user", "content": prompt})
+            self.conversation.append({"role": "assistant", "content": full_response})
+            
+            # Parse and execute any paper operations
+            papers_to_add = self.parse_paper(full_response)
+            
+            if papers_to_add:
+                added_count = 0
+                for paper in papers_to_add:
+                    if self.add_paper(
+                        paper.get('title', ''),
+                        paper.get('url', ''),
+                        paper.get('keywords', ''),
+                        paper.get('type', '')
+                    ):
+                        added_count += 1
+                
+                if added_count > 0:
+                    success_msg = f"\n\n✅ Successfully added {added_count} paper(s) to the database."
+                    yield success_msg
+
     def chat(self, prompt: str) -> str:
-        """Main chat interface"""
+        """Main chat interface (non-streaming version for backward compatibility)"""
         # Add context about current papers
         context = f"{general_prompt}\n\nCurrent database status:\n{self.get_papers_summary()}\n\nUser: {prompt}"
         
