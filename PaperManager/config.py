@@ -1,131 +1,127 @@
 import toml
 import os
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import List
 
-class ConfigManager:
-    def __init__(self, config_file: str = "config/base.toml"):
-        self.config_file = config_file
-        self.config = self.load_config()
+@dataclass
+class Config:
+    # API settings
+    api_model: str = "google/gemini-2.0-flash-001"
+    api_temperature: float = 0.3
+    api_max_tokens: int = 1000000
+    api_key: str = ""
     
-    def load_config(self) -> Dict[str, Any]:
+    # Paper settings
+    paper_types: List[str] = None
+    csv_file: str = "papers.csv"
+
+    # HF settings
+    hf_folder: str = "data"
+    hf_repo_id: str = "MikaStars39/MikaDailyPaper"
+    
+    # UI settings
+    ui_theme: str = "soft"
+    chatbot_height: int = 500
+    debug: bool = True
+    
+    def __post_init__(self):
+        if self.paper_types is None:
+            self.paper_types = ["Agent/RL", "Interpretability", "Efficiency"]
+    
+    @classmethod
+    def load_from_file(cls, config_file: str = "config/base.toml") -> 'Config':
         """Load configuration from TOML file"""
         try:
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return toml.load(f)
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    data = toml.load(f)
+                
+                # Flatten nested structure
+                config_data = {}
+                if 'api' in data:
+                    config_data.update({f'api_{k}': v for k, v in data['api'].items()})
+                if 'paper' in data:
+                    config_data.update({f'paper_{k}' if k != 'types' else 'paper_types': v for k, v in data['paper'].items()})
+                if 'hf' in data:
+                    config_data.update({f'hf_{k}': v for k, v in data['hf'].items()})
+                if 'ui' in data:
+                    config_data.update({f'ui_{k}': v for k, v in data['ui'].items()})
+                
+                # Only include fields that exist in the dataclass
+                valid_fields = {field.name for field in cls.__dataclass_fields__.values()}
+                filtered_data = {k: v for k, v in config_data.items() if k in valid_fields}
+
+                print(filtered_data)
+                
+                return cls(**filtered_data)
             else:
-                # Return default configuration if file doesn't exist
-                return self.get_default_config()
+                return cls()
         except Exception as e:
             print(f"Error loading config: {e}")
-            return self.get_default_config()
+            return cls()
     
-    def get_default_config(self) -> Dict[str, Any]:
-        """Get default configuration"""
-        return {
-            "api": {
-                "model": "google/gemini-2.0-flash-001",
-                "temperature": 0.3,
-                "max_tokens": 1000000,
-                "api_key": ""
-            },
-            "paper": {
-                "types": ["Agent/RL", "Interpretability", "Efficiency"],
-                "csv_file": "papers.csv"
-            },
-            "ui": {
-                "theme": "soft",
-                "chatbot_height": 500,
-                "debug": True
-            }
-        }
-    
-    def save_config(self):
-        """Save current configuration to file"""
+    def save_to_file(self, config_file: str = "config/base.toml") -> bool:
+        """Save configuration to TOML file"""
         try:
             # Create config directory if it doesn't exist
-            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+            os.makedirs(os.path.dirname(config_file), exist_ok=True)
             
-            with open(self.config_file, 'w', encoding='utf-8') as f:
-                toml.dump(self.config, f)
+            # Convert to nested structure for TOML
+            data = {
+                "api": {
+                    "model": self.api_model,
+                    "temperature": self.api_temperature,
+                    "max_tokens": self.api_max_tokens,
+                    "api_key": self.api_key
+                },
+                "paper": {
+                    "types": self.paper_types,
+                    "csv_file": self.csv_file
+                },
+                "hf": {
+                    "folder": self.hf_folder,
+                    "repo_id": self.hf_repo_id
+                },
+                "ui": {
+                    "theme": self.ui_theme,
+                    "chatbot_height": self.chatbot_height,
+                    "debug": self.debug
+                }
+            }
+            
+            with open(config_file, 'w', encoding='utf-8') as f:
+                toml.dump(data, f)
             return True
         except Exception as e:
             print(f"Error saving config: {e}")
             return False
     
-    def update_config(self, section: str, key: str, value: Any):
-        """Update a specific configuration value"""
-        if section not in self.config:
-            self.config[section] = {}
-        self.config[section][key] = value
+    def update_config(self, section: str, key: str, value):
+        """Update a configuration value"""
+        field_name = f"{section}_{key}" if section != "paper" or key != "types" else "paper_types"
+        if hasattr(self, field_name):
+            setattr(self, field_name, value)
     
     def get_config_files(self) -> List[str]:
-        """Get list of available config files"""
+        """Get list of available configuration files"""
         config_dir = "config"
         if not os.path.exists(config_dir):
-            os.makedirs(config_dir, exist_ok=True)
             return []
         
-        files = [f for f in os.listdir(config_dir) if f.endswith('.toml')]
-        return sorted(files) if files else []
+        config_files = []
+        for file in os.listdir(config_dir):
+            if file.endswith('.toml'):
+                config_files.append(os.path.join(config_dir, file))
+        return config_files
     
-    def load_config_file(self, filename: str):
-        """Load a specific config file"""
-        if filename:
-            self.config_file = os.path.join("config", filename)
-            self.config = self.load_config()
+    def load_config_file(self, config_file: str):
+        """Load a specific configuration file and update current config"""
+        loaded_config = self.load_from_file(config_file)
+        
+        # Update current instance with loaded values
+        for field in self.__dataclass_fields__:
+            setattr(self, field, getattr(loaded_config, field))
     
-    def create_config_from_template(self, name: str, template_config: Dict[str, Any] = None):
-        """Create a new config file from template or current config"""
-        try:
-            if not name.endswith('.toml'):
-                name += '.toml'
-            
-            config_path = os.path.join("config", name)
-            config_to_save = template_config or self.config
-            
-            os.makedirs("config", exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
-                toml.dump(config_to_save, f)
-            
-            return True
-        except Exception as e:
-            print(f"Error creating config file: {e}")
-            return False
-    
-    # Convenience methods for accessing config values
-    @property
-    def api_model(self) -> str:
-        return self.config.get("api", {}).get("model", "google/gemini-2.0-flash-001")
-    
-    @property
-    def api_temperature(self) -> float:
-        return self.config.get("api", {}).get("temperature", 0.3)
-    
-    @property
-    def api_max_tokens(self) -> int:
-        return self.config.get("api", {}).get("max_tokens", 1000000)
-    
-    @property
-    def api_key(self) -> str:
-        return self.config.get("api", {}).get("api_key", "")
-    
-    @property
-    def paper_types(self) -> List[str]:
-        return self.config.get("paper", {}).get("types", ["Agent/RL", "Interpretability", "Efficiency"])
-    
-    @property
-    def csv_file(self) -> str:
-        return self.config.get("paper", {}).get("csv_file", "papers.csv")
-    
-    @property
-    def ui_theme(self) -> str:
-        return self.config.get("ui", {}).get("theme", "soft")
-    
-    @property
-    def chatbot_height(self) -> int:
-        return self.config.get("ui", {}).get("chatbot_height", 500)
-    
-    @property
-    def debug(self) -> bool:
-        return self.config.get("ui", {}).get("debug", True) 
+    def save_config(self) -> bool:
+        """Save current configuration"""
+        return self.save_to_file() 

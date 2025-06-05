@@ -5,34 +5,38 @@ import os
 from urllib.parse import urlparse
 from .api import call_openrouter, call_openrouter_stream
 from .prompts import general_prompt
-from .config import ConfigManager
+from .config import Config
+from .hfd import upload_to_hf
+
+ROW_TYPE = ["title", "keywords", "url", "type"]
 
 class PaperManager:
     def __init__(
         self, 
-        config_manager: ConfigManager = None,
-        csv_file: str = None, 
-        api_key: str = None, 
-        paper_types: List[str] = None,
-        model: str = None
+        config: Config = None,
+        csv_file: str = None,
+        api_key: str = None
     ):
-        # Use config manager or create default one
-        self.config_manager = config_manager or ConfigManager()
+        # Use provided config or create default one
+        self.config = config or Config()
         
-        # Override config with provided parameters
-        self.csv_file = csv_file or self.config_manager.csv_file
-        self.api_key = api_key or self.config_manager.api_key
-        self.model = model or self.config_manager.api_model
-        self.paper_types = paper_types or self.config_manager.paper_types
+        # Override config with provided parameters if given
+        if csv_file:
+            self.config.csv_file = csv_file
+        if api_key:
+            self.config.api_key = api_key
+            
+        self.csv_file = self.config.csv_file
+        self.api_key = self.config.api_key
+        self.model = self.config.api_model
+        self.paper_types = self.config.paper_types
+        self.folder = self.config.hf_folder
+        self.repo_id = self.config.hf_repo_id
         
         self.papers = []
         self.conversation = []
         
-        self.load_papers()
-        self._initialize_csv()
-    
-    def load_papers(self):
-        """Load existing papers from CSV file"""
+        # initialize papers and csv file
         try:
             with open(self.csv_file, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
@@ -40,12 +44,10 @@ class PaperManager:
         except FileNotFoundError:
             self.papers = []
     
-    def _initialize_csv(self):
-        """Initialize CSV file with headers if it doesn't exist"""
         if not os.path.exists(self.csv_file):
             with open(self.csv_file, 'w', encoding='utf-8', newline='') as file:
                 writer = csv.writer(file)
-                writer.writerow(['title', 'keywords', 'url', 'type'])
+                writer.writerow(ROW_TYPE)
     
     def parse_paper(self, input_text: str) -> List[Dict]:
         """Parse input text into paper details using regex"""
@@ -135,7 +137,7 @@ class PaperManager:
         if len(self.papers) < original_count:
             # Rewrite the entire CSV file
             with open(self.csv_file, 'w', encoding='utf-8', newline='') as file:
-                writer = csv.DictWriter(file, fieldnames=['title', 'keywords', 'url', 'type'])
+                writer = csv.DictWriter(file, fieldnames=ROW_TYPE)
                 writer.writeheader()
                 writer.writerows(self.papers)
             return True
@@ -153,24 +155,13 @@ class PaperManager:
         
         return results
     
-    def get_papers_summary(self) -> str:
-        """Get a summary of all papers for context"""
-        if not self.papers:
-            return "No papers in the database."
+    def upload_to_hf(self):
+        upload_to_hf(self.folder, self.repo_id, "dataset", self.config.api_key)
         
-        summary = f"Current papers in database ({len(self.papers)} total):\n"
-        for i, paper in enumerate(self.papers[:10], 1):  # Show first 10
-            summary += f"{i}. {paper['title']} ({paper['type']})\n"
-        
-        if len(self.papers) > 10:
-            summary += f"... and {len(self.papers) - 10} more papers."
-        
-        return summary
-    
     def chat_stream(self, prompt: str) -> Generator[str, None, None]:
         """Main chat interface with streaming response"""
         # Add context about current papers
-        context = f"{general_prompt}\n\nCurrent database status:\n{self.get_papers_summary()}\n\nUser: {prompt}"
+        context = f"{general_prompt}\n\nUser: {prompt}"
         
         # Call LLM with streaming
         full_response = ""
@@ -178,8 +169,8 @@ class PaperManager:
             context, 
             self.api_key, 
             self.model,
-            temperature=self.config_manager.api_temperature,
-            max_tokens=self.config_manager.api_max_tokens,
+            temperature=self.config.api_temperature,
+            max_tokens=self.config.api_max_tokens,
             conversation=self.conversation.copy()  # Pass a copy to avoid modification during streaming
         ):
             full_response += chunk
@@ -208,40 +199,3 @@ class PaperManager:
                 if added_count > 0:
                     success_msg = f"\n\n✅ Successfully added {added_count} paper(s) to the database."
                     yield success_msg
-
-    def chat(self, prompt: str) -> str:
-        """Main chat interface (non-streaming version for backward compatibility)"""
-        # Add context about current papers
-        context = f"{general_prompt}\n\nCurrent database status:\n{self.get_papers_summary()}\n\nUser: {prompt}"
-        
-        # Call LLM with config parameters
-        self.conversation, response = call_openrouter(
-            context, 
-            self.api_key, 
-            self.model,
-            temperature=self.config_manager.api_temperature,
-            max_tokens=self.config_manager.api_max_tokens,
-            conversation=self.conversation
-        )
-        
-        if response is None:
-            return "Sorry, I couldn't process your request. Please check your API key."
-        
-        # Parse and execute any paper operations
-        papers_to_add = self.parse_paper(response)
-        
-        if papers_to_add:
-            added_count = 0
-            for paper in papers_to_add:
-                if self.add_paper(
-                    paper.get('title', ''),
-                    paper.get('url', ''),
-                    paper.get('keywords', ''),
-                    paper.get('type', '')
-                ):
-                    added_count += 1
-            
-            if added_count > 0:
-                response += f"\n\n✅ Successfully added {added_count} paper(s) to the database."
-        
-        return response

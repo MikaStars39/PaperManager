@@ -7,7 +7,7 @@ def call_openrouter_stream(
     api_key: str, 
     model: str,
     temperature: float = 0.3,
-    max_tokens: int = 10000000,
+    max_tokens: int = 500000,
     conversation: List[Dict[str, str]] = None
 ) -> Generator[str, None, None]:
     """Call LLM API to get streaming response"""
@@ -80,7 +80,7 @@ def call_openrouter(
     api_key: str, 
     model: str,
     temperature: float = 0.3,
-    max_tokens: int = 10000000,
+    max_tokens: int = 500000,
     conversation: List[Dict[str, str]] = None
 ) -> Optional[str]:
     """Call LLM API to get response (non-streaming version)"""
@@ -117,4 +117,3 @@ def call_openrouter(
     except Exception as e:
         print(f"Error calling API: {str(e)}")
         return None, None
-

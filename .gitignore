@@ -1,2 +1,8 @@
 *__pycache__*
 config/test.toml
+*.csv
+*.json
+*.txt
+*.pdf
+*.docx
+*.doc
