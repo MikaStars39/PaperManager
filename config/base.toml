@@ -8,7 +8,7 @@ max_tokens = 1000000
 api_key = ""  # Add your OpenRouter API key here
 
 [paper]
-types = ["Agent/RL", "Interpretability", "Efficiency"]
+types = ["agent_rl", "Interpretability", "Efficiency"]
 csv_file = "papers.csv"
 
 [ui]
