@@ -18,6 +18,7 @@ class Config:
     # HF settings
     hf_folder: str = "data"
     hf_repo_id: str = "MikaStars39/MikaDailyPaper"
+    hf_token: str = ""
     
     # UI settings
     ui_theme: str = "soft"
@@ -26,7 +27,7 @@ class Config:
     
     def __post_init__(self):
         if self.paper_types is None:
-            self.paper_types = ["Agent/RL", "Interpretability", "Efficiency"]
+            self.paper_types = ["agent_rl", "interpretability", "efficiency"]
     
     @classmethod
     def load_from_file(cls, config_file: str = "config/base.toml") -> 'Config':
@@ -80,7 +81,8 @@ class Config:
                 },
                 "hf": {
                     "folder": self.hf_folder,
-                    "repo_id": self.hf_repo_id
+                    "repo_id": self.hf_repo_id,
+                    "token": self.hf_token
                 },
                 "ui": {
                     "theme": self.ui_theme,

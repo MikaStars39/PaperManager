@@ -10,6 +10,54 @@ from .hfd import upload_to_hf
 
 ROW_TYPE = ["title", "keywords", "url", "type"]
 
+def split_into_types(main_folder: str, types: List[str]):
+    """Split papers from main folder into type-specific folders.
+    
+    Args:
+        main_folder (str): Path to the main folder containing all papers (e.g., data/all)
+        types (List[str]): List of paper types to split into (e.g., ["efficiency", "interpretability"])
+    """
+    try:
+        main_folder = os.path.join(main_folder, "all")
+        # Ensure main folder exists
+        if not os.path.exists(main_folder):
+            print(f"Main folder {main_folder} does not exist.")
+            return False
+            
+        # Read the CSV file from main folder
+        main_csv = os.path.join(main_folder, "papers.csv")
+        print(f"Reading CSV file from {main_csv}")
+            
+        # Read all papers
+        papers_by_type = {}
+        with open(main_csv, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for paper in reader:
+                paper_type = paper['type'].lower()
+                if paper_type not in papers_by_type:
+                    papers_by_type[paper_type] = []
+                papers_by_type[paper_type].append(paper)
+        
+        # Create type folders and save papers
+        base_dir = os.path.dirname(main_folder)
+        for paper_type in types:
+            type_folder = os.path.join(base_dir, paper_type.lower())
+            os.makedirs(type_folder, exist_ok=True)
+            
+            # Create CSV file for this type
+            type_csv = os.path.join(type_folder, "papers.csv")
+            papers = papers_by_type.get(paper_type.lower(), [])
+            
+            with open(type_csv, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=ROW_TYPE)
+                writer.writeheader()
+                writer.writerows(papers)
+                
+        return True
+    except Exception as e:
+        print(f"Error splitting papers: {str(e)}")
+        return False
+
 class PaperManager:
     def __init__(
         self, 
@@ -197,5 +245,15 @@ class PaperManager:
                         added_count += 1
                 
                 if added_count > 0:
+                    if split_into_types(self.folder, self.paper_types):
+                        success_msg = f"\n\n✅ Successfully split papers by type."
+                        yield success_msg
+                    else:
+                        success_msg = f"\n\n❌ Failed to split papers by type."
+                        yield success_msg
                     success_msg = f"\n\n✅ Successfully added {added_count} paper(s) to the database."
                     yield success_msg
+                else:
+                    success_msg = f"\n\n❌ Failed to add any paper(s) to the database."
+                    yield success_msg
+                    
