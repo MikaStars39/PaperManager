@@ -18,7 +18,7 @@ First clone the repo:
 git clone https://github.com/MikaStars39/PaperManager.git
 ```
 
-We suggest use uv as the virtual environment manager, you can run the following command to install the venv with pip:
+We suggest using uv as the virtual environment manager, you can run the following command to install the venv with pip:
 
 ```shell
 uv init
@@ -30,4 +30,9 @@ Copy the ```config/base.toml``` and create a new config based on your preference
 
 ```
 uv run main.py --config config/test.toml
+```
+
+If need to push to huggingface, please export the HF_TOKEN:
+```
+export HF_TOKEN="xxxx"
 ```
